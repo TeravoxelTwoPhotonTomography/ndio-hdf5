@@ -27,8 +27,8 @@ if(NOT TARGET libhdf5)
   find_package(ZLIB CONFIG PATHS cmake CONFIGS ZLIBConfig.cmake)
 
   ExternalProject_Add(libhdf5
-    URL        http://www.hdfgroup.uiuc.edu/ftp/pub/outgoing/hdf5/snapshots/v19/hdf5-1.9.125.tar.gz
-    URL_MD5    60246a2323058dd3ad832dcb2ca4fcda
+    URL        http://www.hdfgroup.uiuc.edu/ftp/pub/outgoing/hdf5/snapshots/v19/hdf5-1.9.145.tar.gz
+    URL_MD5    7269eea68aa1101b59dc81a0a8afbb12
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
                #-DCMAKE_PREFIX_PATH:PATH=${PROJECT_SOURCE_DIR}/cmake ## Use our custom ZLIB and SZIB configs
                -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}

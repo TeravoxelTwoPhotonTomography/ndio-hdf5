@@ -6,7 +6,7 @@
 */
 
 #include <gtest/gtest.h>
-#include "plugins/ndio-hdf5/config.h"
+#include "config.h"
 #include "nd.h"
 #include "helpers.h"
 
@@ -22,8 +22,8 @@ struct _files_t
  
 file_table[] =
 { // Set a: Should be i16, but is read by mylib as u16
-  {NDIO_HDF5_TEST_DATA_PATH"/test.h5" ,nd_i16,2,{222,333,1 ,1,1}},
-  {NDIO_HDF5_TEST_DATA_PATH"/test.mat",nd_f64,3,{30 ,20 ,10,1,1}},
+  {NDIO_HDF5_TEST_DATA_PATH"/test.h5" ,nd_i16,2,{333,222,1 ,1,1}},
+  {NDIO_HDF5_TEST_DATA_PATH"/test.mat",nd_f64,3,{10 ,20 ,30,1,1}},
   {0}
 };
 
