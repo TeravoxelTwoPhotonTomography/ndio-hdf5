@@ -12,8 +12,9 @@ set(NDIO_HDF5_TEST_DATA_PATH ${PROJECT_SOURCE_DIR}/test/data)
 configure_file(${PROJECT_SOURCE_DIR}/config.h.in ${PROJECT_BINARY_DIR}/config.h)
 include_directories(${PROJECT_BINARY_DIR})
 
-find_package(ND   CONFIG PATHS cmake)
-find_package(HDF5 CONFIG PATHS cmake CONFIGS HDF5Config.cmake)
+find_package(GTEST CONFIG PATHS cmake)
+find_package(ND    CONFIG PATHS cmake)
+find_package(HDF5  CONFIG PATHS cmake CONFIGS HDF5Config.cmake)
 
 include_directories(${ND_INCLUDE_DIR})
 include_directories(${HDF5_INCLUDE_DIRS})
@@ -31,13 +32,12 @@ file(GLOB HDRS src/*.h)
 
 add_definitions(-fPIC)
 add_library(ndio-hdf5 MODULE ${SRCS} ${HDRS})
-target_link_libraries(ndio-hdf5 nd ${HDF5_LIBRARIES} ${ND_LIBRARIES})
+target_link_libraries(ndio-hdf5 ${HDF5_LIBRARIES} ${ND_LIBRARIES})
+add_dependencies(ndio-hdf5 nd)
 
 ##############################################################################
 #  Testing
 ##############################################################################
-
-find_package(GTEST CONFIG PATHS cmake)
 
 file(GLOB TEST_SOURCES test/*.cc)
 if(GTEST_FOUND AND TEST_SOURCES)
@@ -51,7 +51,7 @@ if(GTEST_FOUND AND TEST_SOURCES)
     ${CMAKE_THREAD_LIBS_INIT}
     ${ND_LIBRARIES}
     )
-  add_dependencies(test-ndio-hdf5 gtest)
+  add_dependencies(test-ndio-hdf5 gtest nd)
   gtest_copy_shared_libraries(test-ndio-hdf5)
   install(TARGETS test-ndio-hdf5 DESTINATION bin)
   add_test(TestNDIOSeries test-ndio-hdf5)
