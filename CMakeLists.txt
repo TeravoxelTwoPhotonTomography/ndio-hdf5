@@ -16,7 +16,7 @@ find_package(GTEST CONFIG PATHS cmake)
 find_package(ND    CONFIG PATHS cmake)
 find_package(HDF5  CONFIG PATHS cmake CONFIGS HDF5Config.cmake)
 
-include_directories(${ND_INCLUDE_DIR})
+include_directories(${ND_INCLUDE_DIRS})
 include_directories(${HDF5_INCLUDE_DIRS})
 
 ##############################################################################
@@ -61,12 +61,10 @@ endif()
 ##############################################################################
 #  Install
 ##############################################################################
-install(TARGETS ndio-hdf5
-  EXPORT ndio-hdf5-targets
-  LIBRARY DESTINATION bin/${NDIO_PLUGIN_PATH}
-)
-export(TARGETS ndio-hdf5 FILE ndio-hdf5-targets.cmake)
-install(EXPORT ndio-hdf5-targets DESTINATION cmake)
+foreach(_path ${NDIO_PLUGIN_PATH})
+  install(TARGETS ndio-hdf5 LIBRARY DESTINATION ${_path})
+endforeach()
+install(TARGETS ndio-hdf5 LIBRARY DESTINATION bin/plugins)
 
 ################################################################################
 #  Documentation
