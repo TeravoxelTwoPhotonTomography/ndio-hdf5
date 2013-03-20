@@ -53,18 +53,10 @@ if(GTEST_FOUND AND TEST_SOURCES)
     )
   add_dependencies(test-ndio-hdf5 gtest nd)
   gtest_copy_shared_libraries(test-ndio-hdf5)
-  install(TARGETS test-ndio-hdf5 DESTINATION bin)
+  install(TARGETS test-ndio-hdf5 EXPORT ndio-hdf5-targets DESTINATION bin)
   add_test(TestNDIOSeries test-ndio-hdf5)
   gtest_copy_shared_libraries(test-ndio-hdf5)
-endif()
-
-##############################################################################
-#  Install
-##############################################################################
-foreach(_path ${NDIO_PLUGIN_PATH})
-  install(TARGETS ndio-hdf5 LIBRARY DESTINATION ${_path})
-endforeach()
-install(TARGETS ndio-hdf5 LIBRARY DESTINATION bin/plugins)
+endif()                
 
 ################################################################################
 #  Documentation
@@ -83,3 +75,15 @@ if(DOXYGEN_FOUND)
     VERBATIM
     )
 endif()
+
+##############################################################################
+#  Install
+##############################################################################
+foreach(_path ${NDIO_PLUGIN_PATH})
+  install(TARGETS ndio-hdf5 EXPORT ndio-hdf5-targets LIBRARY DESTINATION ${_path} )
+endforeach()
+#install(TARGETS ndio-hdf5 EXPORT ndio-hdf5-targets LIBRARY DESTINATION bin/plugins)
+install(EXPORT ndio-hdf5-targets DESTINATION cmake)
+export(TARGETS ndio-hdf5 FILE ndio-hdf5-config.cmake)
+export(PACKAGE ndio-hdf5)
+
