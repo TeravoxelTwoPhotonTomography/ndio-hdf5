@@ -80,9 +80,9 @@ endif()
 #  Install
 ##############################################################################
 foreach(_path ${NDIO_PLUGIN_PATH})
-  install(TARGETS ndio-hdf5 EXPORT ndio-hdf5-targets LIBRARY DESTINATION ${_path} )
+  install(TARGETS ndio-hdf5 DESTINATION ${_path} )
 endforeach()
-#install(TARGETS ndio-hdf5 EXPORT ndio-hdf5-targets LIBRARY DESTINATION bin/plugins)
+install(TARGETS ndio-hdf5 EXPORT ndio-hdf5-targets DESTINATION bin/plugins)
 install(EXPORT ndio-hdf5-targets DESTINATION cmake)
 export(TARGETS ndio-hdf5 FILE ndio-hdf5-config.cmake)
 export(PACKAGE ndio-hdf5)
