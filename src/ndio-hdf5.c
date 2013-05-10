@@ -306,7 +306,7 @@ static unsigned parse_mode_string(const char* mode,char *isr, char *isw)
   if(w)    return H5F_ACC_TRUNC;
 Error:
   *isr=1;
-  *isr=0;
+  *isw=0;
   return H5F_ACC_RDONLY;
 }
 
