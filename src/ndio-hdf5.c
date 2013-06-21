@@ -31,7 +31,10 @@
 
 #include "macros.h" // TRY, LOG, NEW, etc...
 
+#define CHUNK_THRESH (1ULL<<24) // 16M elems
+
 #ifdef _MSC_VER
+#include <malloc.h>
 #include <io.h>
 #define alloca _alloca
 #define access _access
@@ -41,6 +44,8 @@
 #else
 #include <unistd.h> // for access
 #endif
+
+#define max(a,b) ((a)>(b)?(a):(b))
 
 /// Recognized file extensions (A NULL terminated list).
 static const char *g_readable_exts[]={
@@ -97,7 +102,7 @@ static herr_t query_first_name(hid_t id,const char *name,const H5L_info_t *i, vo
 { H5O_info_t info;
   HTRY(H5Oget_info_by_name(id,name,&info,H5P_DEFAULT));
   if(info.type==H5O_TYPE_DATASET)
-  { TRY(*(char**)data=malloc(1+strlen(name)));
+  { TRY(*(char**)data=(char*)malloc(1+strlen(name)));
     strcpy(*(char**)data,name);
   }
   return 1; // imediately terminate iteration
@@ -162,7 +167,7 @@ static char* name(ndio_hdf5_t self)
 { static const char name_[]="data";
   if(self->name) return self->name;
   if(!self->isr)
-  { TRY(self->name=malloc(1+countof(name_)));
+  { TRY(self->name=(char*)malloc(1+countof(name_)));
     strcpy(self->name,name_);
   }
   else
@@ -230,16 +235,29 @@ Error:
   return 0;
 }
 
+static size_t prod_sz(size_t *v, size_t n)
+{ return (n>0)?(v[0]*prod_sz(v+1,n-1)):1; 
+}
+static size_t prod_hsz(hsize_t *v, size_t n)
+{ return (n>0)?(v[0]*prod_hsz(v+1,n-1)):1; 
+}
+
+
+
 static ndio_hdf5_t set_chunk(ndio_hdf5_t self, unsigned ndim, size_t *shape)
 { hsize_t *sh;
   hid_t out;
   STACK_ALLOC(hsize_t,sh,ndim);
-  reverse_hsz_sz(ndim,sh,shape);
-  { int i; 
-    for(i=0;i<((int)ndim)-2;++i)
-      sh[i]=1;
+  reverse_hsz_sz(ndim,sh,shape); 
+  { int i=0;
+    const int t=max(((int)ndim)-3,0);
+    for(i=0;i<t && prod_hsz(sh,ndim)>CHUNK_THRESH;++i)
+      sh[i]=1; // flatten outer dimensions
+    while(prod_hsz(sh,ndim)>CHUNK_THRESH)
+    { for(i=t;i<(int)ndim && prod_hsz(sh,ndim)>CHUNK_THRESH;++i)
+        sh[i]/=2; //halve the remaining 1 or 2 dimensions
+    }
   }
-  //sh[ndim-1]=1; // not sure what's best for chunking...this is one guess
   HTRY(H5Pset_chunk(out=dataset_creation_properties(self),ndim,sh));
   return self;
 Error:
@@ -249,7 +267,7 @@ Error:
 /**
  * Appends along the last dimensions.
  */
-static hid_t make_dataset(ndio_hdf5_t self,nd_type_id_t typeid,unsigned ndim,size_t *shape, hid_t* filespace)
+static hid_t make_dataset(ndio_hdf5_t self,nd_type_id_t type_id,unsigned ndim,size_t *shape, hid_t* filespace)
 { hsize_t *sh=0,*ori=0,*ext=0;
   TRY(self->isw);
   STACK_ALLOC(hsize_t,sh ,ndim);
@@ -267,7 +285,7 @@ static hid_t make_dataset(ndio_hdf5_t self,nd_type_id_t typeid,unsigned ndim,siz
   } else
   { HTRY(self->dataset=H5Dcreate(
                        self->file,name(self),
-                       nd_to_hdf5_type(typeid),
+                       nd_to_hdf5_type(type_id),
                        make_space(self,ndim,shape),
                        H5P_DEFAULT,/*(rare) link creation props*/
                        dataset_creation_properties(
@@ -426,9 +444,9 @@ static unsigned hdf5_subarray(ndio_t file,nd_t dst,size_t *pos,size_t *step)
   STACK_ALLOC(hsize_t,pos_,ndndim(dst));
   STACK_ALLOC(hsize_t,shape_,ndndim(dst));
   STACK_ALLOC(hsize_t,step_,ndndim(dst));
-  copy_hsz_sz(ndndim(dst),shape_,ndshape(dst));
-  copy_hsz_sz(ndndim(dst),pos_,pos);
-  copy_hsz_sz(ndndim(dst),step_,step);
+  reverse_hsz_sz(ndndim(dst),shape_,ndshape(dst));
+  reverse_hsz_sz(ndndim(dst),pos_,pos);
+  reverse_hsz_sz(ndndim(dst),step_,step);
 
   HTRY(f=H5Dget_space(dataset(self)));
   HTRY(H5Sselect_hyperslab(f,H5S_SELECT_SET,pos_,step_,shape_,NULL/*block*/));
