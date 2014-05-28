@@ -41,6 +41,11 @@ add_library(ndio-hdf5 MODULE ${SRCS} ${HDRS})
 target_link_libraries(ndio-hdf5 ${HDF5_LIBRARIES} ${ND_LIBRARIES})
 add_dependencies(ndio-hdf5 nd)
 
+ADD_CUSTOM_COMMAND(TARGET ndio-hdf5 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ndio-hdf5.h
+        ${CMAKE_CURRENT_BINARY_DIR}/ndio-hdf5.h )
+
 ##############################################################################
 #  Testing
 ##############################################################################
@@ -62,7 +67,7 @@ if(GTEST_FOUND AND TEST_SOURCES)
   install(TARGETS test-ndio-hdf5 EXPORT ndio-hdf5-targets DESTINATION bin/test)
   add_test(TestNDIOSeries test-ndio-hdf5)
   gtest_copy_shared_libraries(test-ndio-hdf5)
-endif()                
+endif()
 
 ################################################################################
 #  Documentation

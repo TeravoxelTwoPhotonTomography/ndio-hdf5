@@ -28,6 +28,7 @@
 #include <string.h>
 #include "hdf5.h"
 #include "nd.h"
+#include "ndio-hdf5.h"
 
 #include "macros.h" // TRY, LOG, NEW, etc...
 
@@ -88,10 +89,10 @@ static void ctxclose(ndio_hdf5_t self)
   RELEASE(H5Sclose,space);
   RELEASE(H5Tclose,type);
   RELEASE(H5Pclose,dataset_creation_properties);
-#undef RELEASE 
+#undef RELEASE
 #define RELEASE(f,e) if(self->e) {f(self->e); (self->e)=0;}
   RELEASE(free,name);
-#undef RELEASE   
+#undef RELEASE
   free(self);
 }
 
@@ -123,12 +124,12 @@ static void reverse_hsz_sz(size_t n, hsize_t *dst, size_t *src)
 /// Type translation: hdf5->nd
 static nd_type_id_t hdf5_to_nd_type(hid_t tid)
 { size_t        p=H5Tget_precision(tid);
-  
+
   switch(H5Tget_class(tid))
   { case H5T_INTEGER:
       { H5T_sign_t sign=H5Tget_sign(tid);
         switch(p)
-        { 
+        {
 #define   CASE(n) case n:  return (sign==H5T_SGN_NONE)?nd_u##n:nd_i##n
           CASE(8);
           CASE(16);
@@ -147,7 +148,7 @@ static nd_type_id_t hdf5_to_nd_type(hid_t tid)
 }
 
 static hid_t nd_to_hdf5_type(nd_type_id_t tid)
-{ /* 
+{ /*
      Cannot just make a static look up table since HDF5 native types are not
      compile time constants.
    */
@@ -164,16 +165,14 @@ static hid_t nd_to_hdf5_type(nd_type_id_t tid)
 
 
 static char* name(ndio_hdf5_t self)
-{ static const char name_[]="data";
+{
   if(self->name) return self->name;
-  if(!self->isr)
-  { TRY(self->name=(char*)malloc(1+countof(name_)));
-    strcpy(self->name,name_);
-  }
-  else
+
+  if(self->isr)
   { HTRY(H5Literate(self->file,H5_INDEX_NAME,H5_ITER_NATIVE,NULL,query_first_name,&self->name));
+    return self->name;
   }
-  return self->name;
+
 Error:
   return 0;
 }
@@ -236,19 +235,17 @@ Error:
 }
 
 static size_t prod_sz(size_t *v, size_t n)
-{ return (n>0)?(v[0]*prod_sz(v+1,n-1)):1; 
+{ return (n>0)?(v[0]*prod_sz(v+1,n-1)):1;
 }
 static size_t prod_hsz(hsize_t *v, size_t n)
-{ return (n>0)?(v[0]*prod_hsz(v+1,n-1)):1; 
+{ return (n>0)?(v[0]*prod_hsz(v+1,n-1)):1;
 }
-
-
 
 static ndio_hdf5_t set_chunk(ndio_hdf5_t self, unsigned ndim, size_t *shape)
 { hsize_t *sh;
   hid_t out;
   STACK_ALLOC(hsize_t,sh,ndim);
-  reverse_hsz_sz(ndim,sh,shape); 
+  reverse_hsz_sz(ndim,sh,shape);
   { int i=0;
     const int t=max(((int)ndim)-3,0);
     for(i=0;i<t && prod_hsz(sh,ndim)>CHUNK_THRESH;++i)
@@ -339,12 +336,12 @@ static const char* hdf5_fmt_name(void) {return "hdf5";}
  * Format detection.
  * If the file is opened for read mode, HDF5's internal formast detection
  * will be used.  Otherwise, the function will look for a file extension match.
- */ 
+ */
 static unsigned hdf5_is_fmt(const char* path, const char* mode)
 { char isr,isw,*e,**ext;
   char **exts;
   parse_mode_string(mode,&isr,&isw);
-  if(isr) 
+  if(isr)
   { if(access(path,R_OK)==-1) return 0;
     return H5Fis_hdf5(path)>0; // prints a bunch of error text -.-
   }
@@ -358,12 +355,24 @@ static unsigned hdf5_is_fmt(const char* path, const char* mode)
 /**
  * Open.
  */
-static void* hdf5_open(const char* path, const char* mode)
+static void* hdf5_open(ndio_fmt_t *fmt, const char* path, const char* mode)
 { ndio_hdf5_t self=0;
   unsigned modeflags;
   NEW(struct _ndio_hdf5_t,self,1);
   init(self);
   modeflags=parse_mode_string(mode,&self->isr,&self->isw);
+  {
+    ndio_hdf5_param_t *params=(ndio_hdf5_param_t*)ndioFormatGet(fmt);
+    size_t n;
+    if((n=strlen(params->dataset)))
+    { self->name=(char*)malloc(n+1);
+      strcpy(self->name,params->dataset);
+    } else if(!self->isr)
+    { static const char name_[]="data";
+      TRY(self->name=(char*)malloc(1+countof(name_)));
+      strcpy(self->name,name_);
+    }
+  }
   if(!self->isr && self->isw)
     HTRY(self->file=H5Fcreate(path,        // filename
                              modeflags,    // mode flag (unsigned)
@@ -460,6 +469,31 @@ Error:
   return 0;
 }
 
+
+#include "src/io/interface.h"
+
+struct hdf5 {
+  ndio_hdf5_param_t params;
+  ndio_fmt_t        api;
+};
+
+#define containerof(ptr,type,member) ((type *)( ((char *)(ptr)) - offsetof(type,member) ))
+
+static unsigned hdf5_set(ndio_fmt_t *fmt, void *param, size_t nbytes)
+{ struct hdf5* ctx=(struct hdf5*)containerof(fmt,struct hdf5,api);
+  memcpy(&ctx->params,param,nbytes);
+  return 1;
+}
+
+static void* hdf5_get(ndio_fmt_t *fmt)
+{ struct hdf5* ctx=(struct hdf5*)containerof(fmt,struct hdf5,api);
+  return &ctx->params;
+}
+
+static void hdf5_finalize(ndio_fmt_t *fmt) {
+  ndio_hdf5_param_t *p=ndioFormatGet(fmt);
+  memset(p->dataset,0,sizeof(p->dataset));
+}
 //
 // === EXPORT ===
 //
@@ -472,11 +506,11 @@ Error:
 #endif
 /// @endcond
 
-#include "src/io/interface.h"
+
 /// Interface function for the ndio-hdf5 plugin.
 shared const ndio_fmt_t* ndio_get_format_api(void)
-{ 
-  static ndio_fmt_t api=
+{ static const ndio_hdf5_param_t params={0};
+  static const ndio_fmt_t api=
   { hdf5_fmt_name,
     hdf5_is_fmt,
     hdf5_open,
@@ -484,13 +518,26 @@ shared const ndio_fmt_t* ndio_get_format_api(void)
     hdf5_shape,
     hdf5_read,
     hdf5_write,
-    NULL, //set
-    NULL, //get
+    hdf5_set,
+    hdf5_get,
     NULL, //canseek,
     NULL, //seek,
     hdf5_subarray,
+    hdf5_finalize, //finalize format
     NULL, //add plugins
-    NULL  //context
+    NULL, //context
+    0     //ref count
   };
-  return &api;
+  /* Note:
+  To support multithreaded applications and avoid leaky context,
+  this should really be a malloc'd context pointer.  In turn, nd/io.c should
+  treat getting a format context as an allocation.  The hdf5_close function
+  can destroy/unreference the format context being used by a file.
+
+  It's nice to use a format context twice...could ref count.
+  */
+  static struct hdf5 out;
+  out.params = params;
+  out.api    = api;
+  return &out.api;
 }
